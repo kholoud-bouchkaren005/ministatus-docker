@@ -1,3 +1,4 @@
+git
 name: Docker CI
 
 on:
@@ -36,14 +37,36 @@ jobs:
           output: trivy-report.json
           exit-code: "0"
 
-      - name: Rapport Trivy (HTML)
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          image-ref: ${{ env.IMAGE }}:ci
-          format: template
-          template: "@/contrib/html.tpl"
-          output: trivy-report.html
-          exit-code: "0"
+      - name: Rapport HTML (genere depuis le JSON)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, html
+          d = json.load(open("trivy-report.json"))
+          rows = []
+          for r in d.get("Results", []):
+              for v in r.get("Vulnerabilities") or []:
+                  rows.append((v.get("Severity", ""), r.get("Target", ""),
+                               v.get("PkgName", ""), v.get("VulnerabilityID", ""),
+                               v.get("InstalledVersion", ""), v.get("FixedVersion", "")))
+          order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+          rows.sort(key=lambda x: order.get(x[0], 9))
+          colors = {"CRITICAL": "#fecaca", "HIGH": "#fed7aa", "MEDIUM": "#fef08a", "LOW": "#e2e8f0"}
+          out = ["<html><head><meta charset='utf-8'><title>Rapport Trivy</title>",
+                 "<style>body{font-family:Arial;margin:20px}table{border-collapse:collapse;width:100%}",
+                 "td,th{border:1px solid #94a3b8;padding:4px 8px;font-size:13px}",
+                 "th{background:#dbeafe}</style></head><body>",
+                 "<h1>Rapport Trivy - ministatus:ci</h1>",
+                 "<p>Total : %d vulnerabilites</p>" % len(rows),
+                 "<table><tr><th>Gravite</th><th>Cible</th><th>Paquet</th><th>CVE</th>",
+                 "<th>Version installee</th><th>Version corrigee</th></tr>"]
+          for sev, tgt, pkg, cve, ins, fix in rows:
+              c = colors.get(sev, "#fff")
+              cells = "".join("<td>%s</td>" % html.escape(x or "-") for x in (tgt, pkg, cve, ins, fix))
+              out.append("<tr><td style='background:%s'><b>%s</b></td>%s</tr>" % (c, html.escape(sev), cells))
+          out.append("</table></body></html>")
+          open("trivy-report.html", "w", encoding="utf-8").write("\n".join(out))
+          PY
 
       - name: Resume dans la page du run
         if: always()
