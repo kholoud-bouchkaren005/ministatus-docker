@@ -1,14 +1,10 @@
 name: Docker CI
-
 on:
   push:
     branches: [main]
     tags: ["v*"]
   pull_request:
     branches: [main]
-  schedule:
-    - cron: "0 6 * * 1"
-  workflow_dispatch:
 
 env:
   IMAGE: ministatus
@@ -41,7 +37,9 @@ jobs:
 
       - name: Génération du Rapport HTML Trivy
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format template --template "@contrib/html.tpl" -o trivy-report.html ${{ env.IMAGE }}:ci || true
+          wget https://github.com/aquasecurity/trivy/releases/download/v0.50.1/trivy_0.50.1_Linux-64bit.deb
+          sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
+          trivy image --format template --template "@contrib/html.tpl" -o trivy-report.html ${{ env.IMAGE }}:ci || true
 
       - name: Resume dans la page du run
         if: always()
@@ -49,7 +47,7 @@ jobs:
           echo "### Rapport Trivy" >> "$GITHUB_STEP_SUMMARY"
           for s in CRITICAL HIGH MEDIUM; do
             n=$(jq "[.Results[]?.Vulnerabilities[]? | select(.Severity==\"$s\")] | length" trivy-report.json)
-            echo "- **$s** : $n" >> "$GITHUB_STEP_SUMMARY"
+            echo "$s: $n" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Publier les rapports
@@ -64,7 +62,7 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE }}:ci
           format: table
-          severity: HIGH,CRITICAL
+          severity: HIGH, CRITICAL
           vuln-type: library
           ignore-unfixed: true
           exit-code: "1"
