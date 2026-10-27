@@ -28,7 +28,7 @@ jobs:
         run: docker run --rm ${{ env.IMAGE }}:ci python -m unittest -v
 
       - name: Rapport Trivy (JSON)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.IMAGE }}:ci
           format: json
@@ -37,9 +37,9 @@ jobs:
 
       - name: Génération du Rapport HTML Trivy
         run: |
-          wget https://github.com/aquasecurity/trivy/releases/download/v0.50.1/trivy_0.50.1_Linux-64bit.deb
+          wget -q https://github.com/aquasecurity/trivy/releases/download/v0.50.1/trivy_0.50.1_Linux-64bit.deb
           sudo dpkg -i trivy_0.50.1_Linux-64bit.deb
-          trivy image --format template --template "@contrib/html.tpl" -o trivy-report.html ${{ env.IMAGE }}:ci || true
+          trivy convert --format template --template "@/usr/local/share/trivy/templates/html.tpl" --output trivy-report.html trivy-report.json
 
       - name: Resume dans la page du run
         if: always()
@@ -47,7 +47,7 @@ jobs:
           echo "### Rapport Trivy" >> "$GITHUB_STEP_SUMMARY"
           for s in CRITICAL HIGH MEDIUM; do
             n=$(jq "[.Results[]?.Vulnerabilities[]? | select(.Severity==\"$s\")] | length" trivy-report.json)
-            echo "$s: $n" >> "$GITHUB_STEP_SUMMARY"
+            echo "- $s : $n" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Publier les rapports
@@ -58,11 +58,11 @@ jobs:
           path: trivy-report.*
 
       - name: Quality gate (HIGH et CRITICAL)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.IMAGE }}:ci
           format: table
-          severity: HIGH, CRITICAL
+          severity: HIGH,CRITICAL
           vuln-type: library
           ignore-unfixed: true
           exit-code: "1"
