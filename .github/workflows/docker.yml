@@ -39,14 +39,9 @@ jobs:
           output: trivy-report.json
           exit-code: "0"
 
-      - name: Rapport Trivy (HTML)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE }}:ci
-          format: template
-          template: "@contrib/html.tpl"
-          output: trivy-report.html
-          exit-code: "0"
+      - name: Génération du Rapport HTML Trivy
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format template --template "@contrib/html.tpl" -o trivy-report.html ${{ env.IMAGE }}:ci || true
 
       - name: Resume dans la page du run
         if: always()
